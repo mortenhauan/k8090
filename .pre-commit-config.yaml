@@ -1,0 +1,100 @@
+default_stages: [commit, push]
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.3.0 # Use the ref you want to point at
+    hooks:
+      - id: check-json
+        name: Checks json files for parseable syntax.
+        exclude: ^.vscode/
+
+      - id: check-merge-conflict
+        name: Checks for files that contain merge conflict strings.
+
+      - id: check-yaml
+        name: Checks yaml files for parseable syntax.
+
+      - id: end-of-file-fixer
+        name: Ensures that a file is either empty, or ends with one newline.
+
+      - id: no-commit-to-branch
+        name: Checks that commits are not pushed to branch main or master.
+  - repo: https://github.com/jackdewinter/pymarkdown
+    rev: v0.9.5
+    hooks:
+      - id: pymarkdown
+        name: Linting markdown files with PyMarkdown.
+        pass_filenames: false
+        args:
+          - "scan"
+          - "."
+  - repo: https://github.com/pycqa/isort
+    rev: 5.10.1
+    hooks:
+      - id: isort
+        name: Sorting imports with isort (python)
+  - repo: local
+    hooks:
+      - id: pylint
+        name: Linting code with PyLint
+        entry: pylint
+        language: system
+        types: [python]
+        args: [
+            "--load-plugins=pylint_quotes", # Load an extension
+            "--rcfile=.pylintrc", # Link to your config file
+            "-rn", # Only display messages
+            "-sn", # Don't display the score
+          ]
+  - repo: local
+    hooks:
+      - id: yapf
+        name: Checking formating of code with YAPF
+        entry: yapf
+        language: system
+        types: [python]
+        args: [
+            "-d", # Print the diff for the fixed source
+            "-r", # Run recursivly over directories
+            "-p", # Run in parallel
+            "-vv", # Print out file names shile processing
+          ]
+  - repo: local
+    hooks:
+      - id: bandit
+        exclude: ^tests/
+        name: Checking security of code with Bandit
+        entry: bandit
+        language: system
+        types: [python]
+        args: [
+            "-r", # Run recursivly over directories
+            "-q", # Only show output when there are errors
+          ]
+  - repo: local
+    hooks:
+      - id: mypy
+        name: Testing typing with MyPy
+        entry: mypy
+        language: system
+        types: [python]
+        args: [
+            "--namespace-packages", # Support namespace packages
+            "--pretty", # Use visually nicer output in error messages
+            "--ignore-missing-imports", # Ignore missing imports
+          ]
+  - repo: local
+    hooks:
+      - id: pytest
+        name: Testing code with PyTest
+        entry: pytest
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [push]
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v1.3.0
+    hooks:
+      - id: conventional-pre-commit
+        name: Checks conventional commit style
+        stages: [commit-msg]
+        args: [] # optional: list of Conventional Commits types to allow
