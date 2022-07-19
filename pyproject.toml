@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "vm8090"
-version = "0.0.1"
+version = "1.0.0"
 authors = [
   { name="Morten Hauan", email="morten@hauan.me" },
 ]
@@ -19,5 +19,5 @@ classifiers = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/pypa/sampleproject"
-"Bug Tracker" = "https://github.com/pypa/sampleproject/issues"
+"Homepage" = "https://github.com/mortenhauan/vm8090"
+"Bug Tracker" = "https://github.com/mortenhauan/vm8090/issues"
