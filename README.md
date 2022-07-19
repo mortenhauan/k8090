@@ -1,4 +1,4 @@
-# VM8090
+# K8090
 
 A module for interacting with the K8090 and VM8090 relay boards.
 
