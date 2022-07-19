@@ -11,37 +11,38 @@ class K8090:
         ON: bool = True
         OFF: bool = False
 
-        def __init__(self, index: int, owner: 'K8090'):
+        def __init__(self, index: int, owner: 'K8090') -> None:
             self._owner = owner
             self._id: int = index
             self._delay: int = 5
             self._timer: bool = False
             self._status: bool = self.OFF
+            self._time_remaining: int = 0
 
         @property
-        def id(self):
+        def id(self) -> int:
             return self._id
 
         @id.setter
-        def id(self, value):
+        def id(self, value) -> None:
             if self._id is None:
                 return
 
             self._id = value
 
-        def on(self):
+        def on(self) -> None:
             self._owner.send_command(0x11, 1 << self.id, 0x00, 0x00)
             self._owner.sync()
 
-        def off(self):
+        def off(self) -> None:
             self._owner.send_command(0x12, 1 << self.id, 0x00, 0x00)
             self._owner.sync()
 
-        def toggle(self):
+        def toggle(self) -> None:
             self._owner.send_command(0x14, 1 << self.id, 0x00, 0x00)
             self._owner.sync()
 
-        def timer(self, seconds: int = None):
+        def timer(self, seconds: int = None) -> None:
             if seconds is None:
                 seconds = 0
 
@@ -56,16 +57,18 @@ class K8090:
             self._owner.sync()
 
         @property
-        def delay(self):
+        def delay(self) -> int:
             return self._delay
 
         @delay.setter
-        def delay(self, seconds: int):
+        def delay(self, seconds: int) -> None:
             if not isinstance(seconds, int):
                 raise TypeError('Delay must be an integer')
 
             if not 0 <= seconds <= 65535:
                 raise ValueError('Delay must be between 0 and 65535 seconds')
+
+            self._delay = int(seconds)
 
             high = (seconds >> 8) & 0xff
             low = (seconds) & 0xff
@@ -74,11 +77,22 @@ class K8090:
             self._owner.sync()
 
         @property
-        def status(self):
+        def timer_is_active(self) -> bool:
+            return self._timer
+
+        @timer_is_active.setter
+        def timer_is_active(self, value: bool) -> None:
+            if not isinstance(value, bool):
+                raise TypeError('Timer must be a boolean')
+
+            self._timer = value
+
+        @property
+        def status(self) -> bool:
             return self._status
 
         @status.setter
-        def status(self, value):
+        def status(self, value) -> None:
             if not isinstance(value, bool):
                 raise TypeError('Status must be a boolean')
 
@@ -95,7 +109,7 @@ class K8090:
         PRESSED: int = 1
         RELEASED: int = 2
 
-        def __init__(self, index, owner: 'K8090'):
+        def __init__(self, index, owner: 'K8090') -> None:
             self._owner = owner
             self._id: int = index
             self._mode: int = self.TOGGLE
@@ -103,11 +117,11 @@ class K8090:
             self._action: int = self.INACTIVE
 
         @property
-        def id(self):
+        def id(self) -> int:
             return self._id
 
         @id.setter
-        def id(self, value):
+        def id(self, value) -> None:
             if self._id is not None:
                 return
 
@@ -118,23 +132,14 @@ class K8090:
             return self._mode
 
         @mode.setter
-        def mode(self, mode: int):
+        def mode(self, mode: int) -> None:
             if mode not in (self.MOMENTARY, self.TOGGLE, self.TIMED):
                 raise ValueError(
                     'Invalid button mode. Use one of the Button.MOMENTARY, Button.TOGGLE, Button.TIMED constants.')
 
-            mask = 1 << self.id
-            param1 = 0x00
-            param2 = 0x00
+            self._mode = mode
 
-            if mode == self.TOGGLE:
-                param1 = mask
-                mask = 0x00
-            elif mode == self.TIMED:
-                param2 = mask
-                mask = 0x00
-
-            self._owner.send_command(0x21, mask, param1, param2)
+            self._owner.sync_button_mode()
             self._owner.sync()
 
         @property
@@ -143,7 +148,7 @@ class K8090:
             return self._pressed
 
         @pressed.setter
-        def pressed(self, value):
+        def pressed(self, value) -> None:
             if not isinstance(value, bool):
                 raise TypeError('Pressed value must be a boolean')
 
@@ -196,6 +201,7 @@ class K8090:
 
         self._query_relay_status()
         self._query_button_mode()
+        self.send_command(0x44, 0xff, 0x00, 0x00)
         self._check_for_response()
 
     def __del__(self):
@@ -291,11 +297,11 @@ class K8090:
         """
         for i in range(8):
             if mask & (1 << i):
-                self.buttons[i].mode = self.Button.MOMENTARY
+                self.buttons[i]._mode = self.Button.MOMENTARY  # pylint: disable=protected-access
             elif param1 & (1 << i):
-                self.buttons[i].mode = self.Button.TOGGLE
+                self.buttons[i]._mode = self.Button.TOGGLE  # pylint: disable=protected-access
             elif param2 & (1 << i):
-                self.buttons[i].mode = self.Button.TIMED
+                self.buttons[i]._mode = self.Button.TIMED  # pylint: disable=protected-access
 
     def _query_timer_delay_response_handler(self, mask: int, param1: int, param2: int) -> None:
         """Query the current timer delay for one or more relays. The device will respond with one or more
@@ -310,8 +316,9 @@ class K8090:
         seconds, for which param1 is the high-byte and param2 is the low-byte value.
         """
         for i in range(8):
-            if mask & (1 << i):
-                self.relays[i].delay = param1 + (param2 << 8)
+            if not mask & (1 << i):
+                continue
+            self.relays[i]._delay = (param1 << 8) + param2  # pylint: disable=protected-access
 
     def _button_status_response_handler(self, mask: int, param1: int, param2: int) -> None:
         """This event is sent when a button is pressed or released. Intercept this command to create an eventdriven
@@ -342,7 +349,7 @@ class K8090:
         """
         for i in range(8):
             self.relays[i].status = (param1 & (1 << i)) != 0
-            self.relays[i].delay = (param2 & (1 << i)) != 0
+            self.relays[i].timer_is_active = (param2 & (1 << i)) != 0
 
     def _query_firmware_version_response_handler(self, param1: int, param2: int) -> None:
         """Queries the firmware version of the board. The version number consists of the year and week
@@ -508,6 +515,15 @@ class K8090:
         """
         self._get_jumper_status()
         return self._jumper_status
+
+    def sync_button_mode(self) -> None:
+        commands = [0, 0, 0]
+        for button in self.buttons:
+            commands[button.mode] = commands[button.mode] | (1 << button.id)
+
+        mask, param1, param2 = commands
+        self.send_command(0x21, mask, param1, param2)
+        self.sync()
 
 
 def connect(serial_port: str) -> K8090:
